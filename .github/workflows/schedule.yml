@@ -9,13 +9,13 @@ jobs:
   track:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # ✅ Даём права на запись в репозиторий
+      contents: write  # ✅ Права на запись
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4.1.7
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}  # ✅ Используем токен с правами
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Python
         uses: actions/setup-python@v5.1.1
@@ -24,18 +24,27 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install requests beautifulsoup4 matplotlib
+          python -m pip install --upgrade pip --no-cache-dir
+          pip install requests beautifulsoup4 matplotlib --no-cache-dir
 
       - name: Run script
         run: python track_kv_ee.py
 
+      - name: Debug - Show files
+        run: ls -la
+
+      - name: Debug - Show data.json
+        run: cat data.json || echo "data.json NOT FOUND"
+
+      - name: Debug - Show graph.png
+        run: ls -la graph.png || echo "graph.png NOT FOUND"
+
+      # Используем специализированный action для коммита
       - name: Commit and push changes
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # ✅ Токен для git push
-        run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-          git add data.json graph.png
-          git commit -m "Update KV.ee data" || echo "No changes to commit"
-          git push origin HEAD:main || echo "Push skipped"
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Update KV.ee data"
+          file_pattern: "data.json graph.png"
+          commit_user_name: "GitHub Actions"
+          commit_user_email: "actions@github.com"
+          commit_author: "GitHub Actions <actions@github.com>"
