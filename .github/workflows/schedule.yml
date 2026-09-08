@@ -9,16 +9,14 @@ jobs:
   track:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # ✅ Права на запись
+      contents: write
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.1.7
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+        uses: actions/checkout@11223a5885b234b2c85c0e87e6342944799145f2  # Последний коммит
 
       - name: Setup Python
-        uses: actions/setup-python@v5.1.1
+        uses: actions/setup-python@0b970c42e458f79e7b3f49998a8842a88299a146  # Последний коммит
         with:
           python-version: "3.10"
 
@@ -30,21 +28,10 @@ jobs:
       - name: Run script
         run: python track_kv_ee.py
 
-      - name: Debug - Show files
-        run: ls -la
-
-      - name: Debug - Show data.json
-        run: cat data.json || echo "data.json NOT FOUND"
-
-      - name: Debug - Show graph.png
-        run: ls -la graph.png || echo "graph.png NOT FOUND"
-
-      # Используем специализированный action для коммита
       - name: Commit and push changes
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@680512403922689343c2ae08355b8dd6859e4143  # Последний коммит
         with:
           commit_message: "Update KV.ee data"
           file_pattern: "data.json graph.png"
           commit_user_name: "GitHub Actions"
           commit_user_email: "actions@github.com"
-          commit_author: "GitHub Actions <actions@github.com>"
