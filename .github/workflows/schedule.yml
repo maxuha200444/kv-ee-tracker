@@ -3,31 +3,36 @@ name: Track KV.ee Objects
 on:
   schedule:
     - cron: "0 12 * * *"  # 12:00 UTC = 15:00 Tallinn
-  workflow_dispatch:  # Для ручного запуска
+  workflow_dispatch:
 
 jobs:
   track:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.1.7  # Обновленная версия
+        uses: actions/checkout@v4.1.7  # Последняя стабильная версия
 
-      - name: Set up Python
-        uses: actions/setup-python@v5.1.1  # Обновленная версия
+      - name: Setup Python
+        uses: actions/setup-python@v5.1.1  # Последняя стабильная версия
         with:
           python-version: "3.10"
 
       - name: Install dependencies
         run: |
+          python -m pip install --upgrade pip
           pip install requests beautifulsoup4 matplotlib
 
       - name: Run script
         run: python track_kv_ee.py
 
-      - name: Commit changes
+      - name: Commit and push changes
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           git add data.json graph.png
-          git commit -m "Update KV.ee data" || echo "No changes"
-          git push
+          if [ -n "$(git status --porcelain)" ]; then
+            git commit -m "Update KV.ee data"
+            git push
+          else
+            echo "No changes to commit"
+          fi
