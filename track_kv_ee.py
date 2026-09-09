@@ -7,24 +7,22 @@ import matplotlib.pyplot as plt
 
 def get_objects_count():
     url = "https://www.kv.ee/en/apartments-for-sale"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-    }
+    headers = {"User-Agent": "Mozilla/5.0"}
     try:
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "html.parser")
 
-        # Селектор для kv.ee (проверено: текст находится в h1)
-        h1 = soup.find("h1", class_="d-flex")
-        if h1:
-            text = h1.get_text(strip=True)
-            # Пример текста: "Apartments for sale in Estonia (10 356)"
-            count_text = text.split("(")[1].split(")")[0].replace(" ", "")
+        # ✅ Новый селектор для kv.ee
+        span = soup.find("span", class_="large stronger")
+        if span:
+            text = span.get_text(strip=True)
+            # Пример текста: "Objects found 10 341"
+            count_text = text.replace("Objects found", "").strip().replace(" ", "")
             return int(count_text)
         return None
     except Exception as e:
-        print(f"Ошибка: {e}")
+        print(f"Ошибка парсинга: {e}")
         return None
 
 def save_data(count):
