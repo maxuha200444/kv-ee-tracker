@@ -1,7 +1,4 @@
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from bs4 import BeautifulSoup
+from apify import ApifyClient
 import json
 import os
 import re
@@ -9,34 +6,47 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 
 def get_objects_count():
-    url = "https://www.kv.ee/en/apartments-for-sale"
-
-    # Настраиваем Chrome в headless-режиме
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--window-size=1920,1080")
-    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+    api_token = os.getenv("APIFY_API_TOKEN")
+    if not api_token:
+        print("Apify API токен не найден!")
+        return None
 
     try:
-        # Запускаем Chrome
-        service = Service(executable_path="/usr/local/bin/chromedriver")
-        driver = webdriver.Chrome(service=service, options=chrome_options)
-        driver.get(url)
+        # Создаём клиент Apify
+        client = ApifyClient(api_token)
 
-        # Ждём 5 секунд, чтобы страница загрузилась
-        driver.implicitly_wait(5)
+        # Запускаем актор для скрапинга страницы
+        run_input = {
+            "startUrls": [{"url": "https://www.kv.ee/en/apartments-for-sale"}],
+            "resultsType": "text",  # Получаем HTML страницы
+            "maxDepth": 0,  # Только стартовая страница
+        }
 
-        # Получаем HTML страницы
-        html = driver.page_source
-        driver.quit()
+        # Запускаем синхронный актор (web-scraper)
+        run = client.actor("apify/web-scraper").call(run_input=run_input)
+
+        # Получаем результаты
+        dataset_items = client.dataset(run["defaultDatasetId"]).list_items().items
+
+        if not dataset_items:
+            print("Нет данных от Apify.")
+            return None
+
+        # Берём первый результат (HTML страницы)
+        html = dataset_items[0]["html"]
+        if not html:
+            print("HTML не получен.")
+            return None
 
         # Ищем "Objects found" в HTML
-        soup = BeautifulSoup(html, "html.parser")
+        match = re.search(r"Objects found (\d[\d\s]+)", html)
+        if match:
+            count_text = match.group(1).replace(" ", "")
+            return int(count_text)
 
-        # Способ 1: Ищем по классу
+        # Ищем по классу
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(html, "html.parser")
         span = soup.find("span", class_=re.compile(r"large|stronger"))
         if span:
             text = span.get_text(strip=True)
@@ -45,13 +55,7 @@ def get_objects_count():
                 count_text = match.group(1).replace(" ", "")
                 return int(count_text)
 
-        # Способ 2: Ищем в тексте всей страницы
-        match = re.search(r"Objects found (\d[\d\s]+)", html)
-        if match:
-            count_text = match.group(1).replace(" ", "")
-            return int(count_text)
-
-        # Способ 3: Ищем в всех элементах
+        # Ищем в тексте всех элементов
         for element in soup.find_all(string=re.compile(r"Objects found \d")):
             count_text = re.sub(r"\D", "", str(element))
             if count_text:
@@ -59,7 +63,7 @@ def get_objects_count():
 
         return None
     except Exception as e:
-        print(f"Ошибка в Selenium: {e}")
+        print(f"Ошибка Apify: {e}")
         return None
 
 def save_data(count):
@@ -107,7 +111,7 @@ def plot_graph(data):
     print("График сохранён.")
 
 def main():
-    print("Парсинг kv.ee с помощью Selenium...")
+    print("Парсинг kv.ee через Apify...")
     count = get_objects_count()
     if count is None:
         print("Не удалось получить данные.")
