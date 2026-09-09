@@ -17,25 +17,23 @@ def get_objects_count():
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
 
-        # Пробуем найти "Objects found" напрямую в тексте
-        match = re.search(r"Objects found (\d[\d\s]*)", response.text)
+        # Ищем "Objects found" и все цифры/пробелы/&nbsp; после него
+        match = re.search(r"Objects found (\d[\d\s&;]+)", response.text)
         if match:
-            count_text = match.group(1).replace(" ", "").replace("&nbsp;", "")
+            # Убираем ВСЕ нецифровые символы (пробелы, &nbsp;, ; и т.д.)
+            count_text = re.sub(r"\D", "", match.group(1))
             return int(count_text)
 
-        # Если не нашли, парсим как HTML
+        # Резервный вариант: ищем в HTML
         soup = BeautifulSoup(response.text, "html.parser")
-        span = soup.find("span", class_="large stronger")
+        span = soup.find(string=re.compile(r"Objects found \d"))
         if span:
-            text = span.get_text(strip=True)
-            if "Objects found" in text:
-                count_text = text.replace("Objects found", "").strip().replace(" ", "")
-                return int(count_text)
+            count_text = re.sub(r"\D", "", span)
+            return int(count_text)
 
         return None
     except Exception as e:
         print(f"Ошибка парсинга: {e}")
-        print(f"Ответ сервера: {response.text[:500]}")  # Выводим первые 500 символов для отладки
         return None
 
 def save_data(count):
