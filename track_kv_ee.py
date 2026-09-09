@@ -2,6 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 import json
 import os
+import re
 from datetime import datetime
 import matplotlib.pyplot as plt
 
@@ -16,10 +17,14 @@ def get_objects_count():
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
 
-        # Пробуем спарсить как HTML
-        soup = BeautifulSoup(response.text, "html.parser")
+        # Пробуем найти "Objects found" напрямую в тексте
+        match = re.search(r"Objects found (\d[\d\s]*)", response.text)
+        if match:
+            count_text = match.group(1).replace(" ", "").replace("&nbsp;", "")
+            return int(count_text)
 
-        # Ищем элемент с текстом "Objects found"
+        # Если не нашли, парсим как HTML
+        soup = BeautifulSoup(response.text, "html.parser")
         span = soup.find("span", class_="large stronger")
         if span:
             text = span.get_text(strip=True)
@@ -27,18 +32,10 @@ def get_objects_count():
                 count_text = text.replace("Objects found", "").strip().replace(" ", "")
                 return int(count_text)
 
-        # Если не нашли, ищем в тексте всей страницы
-        if "Objects found" in response.text:
-            # Извлекаем число из текста (например: "Objects found 10 341")
-            import re
-            match = re.search(r"Objects found (\d[\d\s]*)", response.text)
-            if match:
-                count_text = match.group(1).replace(" ", "")
-                return int(count_text)
-
         return None
     except Exception as e:
         print(f"Ошибка парсинга: {e}")
+        print(f"Ответ сервера: {response.text[:500]}")  # Выводим первые 500 символов для отладки
         return None
 
 def save_data(count):
