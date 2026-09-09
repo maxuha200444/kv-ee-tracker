@@ -7,19 +7,35 @@ import matplotlib.pyplot as plt
 
 def get_objects_count():
     url = "https://www.kv.ee/en/apartments-for-sale"
-    headers = {"User-Agent": "Mozilla/5.0"}
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+    }
     try:
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
+
+        # Пробуем спарсить как HTML
         soup = BeautifulSoup(response.text, "html.parser")
 
-        # ✅ Новый селектор для kv.ee
+        # Ищем элемент с текстом "Objects found"
         span = soup.find("span", class_="large stronger")
         if span:
             text = span.get_text(strip=True)
-            # Пример текста: "Objects found 10 341"
-            count_text = text.replace("Objects found", "").strip().replace(" ", "")
-            return int(count_text)
+            if "Objects found" in text:
+                count_text = text.replace("Objects found", "").strip().replace(" ", "")
+                return int(count_text)
+
+        # Если не нашли, ищем в тексте всей страницы
+        if "Objects found" in response.text:
+            # Извлекаем число из текста (например: "Objects found 10 341")
+            import re
+            match = re.search(r"Objects found (\d[\d\s]*)", response.text)
+            if match:
+                count_text = match.group(1).replace(" ", "")
+                return int(count_text)
+
         return None
     except Exception as e:
         print(f"Ошибка парсинга: {e}")
