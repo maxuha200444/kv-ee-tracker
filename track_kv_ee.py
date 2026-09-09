@@ -1,4 +1,6 @@
-import requests
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
 from bs4 import BeautifulSoup
 import json
 import os
@@ -7,54 +9,58 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 
 def get_objects_count():
-    # Пробуем основной URL
-    urls = [
-        "https://www.kv.ee/en/apartments-for-sale",
-        "https://www.kv.ee/en/search?deal_type=1",  # Альтернативный URL
-    ]
+    url = "https://www.kv.ee/en/apartments-for-sale"
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Connection": "keep-alive",
-        "Referer": "https://www.google.com/",
-        "DNT": "1",
-    }
+    # Настраиваем Chrome в headless-режиме
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--window-size=1920,1080")
+    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
-    for url in urls:
-        try:
-            session = requests.Session()
-            response = session.get(url, headers=headers, timeout=15)
-            response.raise_for_status()
+    try:
+        # Запускаем Chrome
+        service = Service(executable_path="/usr/local/bin/chromedriver")
+        driver = webdriver.Chrome(service=service, options=chrome_options)
+        driver.get(url)
 
-            # Ищем "Objects found" в тексте
-            match = re.search(r"Objects found (\d[\d\s&;]+)", response.text)
+        # Ждём 5 секунд, чтобы страница загрузилась
+        driver.implicitly_wait(5)
+
+        # Получаем HTML страницы
+        html = driver.page_source
+        driver.quit()
+
+        # Ищем "Objects found" в HTML
+        soup = BeautifulSoup(html, "html.parser")
+
+        # Способ 1: Ищем по классу
+        span = soup.find("span", class_=re.compile(r"large|stronger"))
+        if span:
+            text = span.get_text(strip=True)
+            match = re.search(r"Objects found (\d[\d\s]+)", text)
             if match:
-                count_text = re.sub(r"\D", "", match.group(1))
+                count_text = match.group(1).replace(" ", "")
                 return int(count_text)
 
-            # Ищем в HTML
-            soup = BeautifulSoup(response.text, "html.parser")
-            for element in soup.find_all(string=re.compile(r"Objects found \d")):
-                count_text = re.sub(r"\D", "", str(element))
-                if count_text:
-                    return int(count_text)
+        # Способ 2: Ищем в тексте всей страницы
+        match = re.search(r"Objects found (\d[\d\s]+)", html)
+        if match:
+            count_text = match.group(1).replace(" ", "")
+            return int(count_text)
 
-            # Ищем по классу
-            for span in soup.find_all("span"):
-                text = span.get_text(strip=True)
-                match = re.search(r"Objects found (\d[\d\s&;]+)", text)
-                if match:
-                    count_text = re.sub(r"\D", "", match.group(1))
-                    return int(count_text)
+        # Способ 3: Ищем в всех элементах
+        for element in soup.find_all(string=re.compile(r"Objects found \d")):
+            count_text = re.sub(r"\D", "", str(element))
+            if count_text:
+                return int(count_text)
 
-        except Exception as e:
-            print(f"Ошибка при запросе {url}: {e}")
-            continue
-
-    return None
+        return None
+    except Exception as e:
+        print(f"Ошибка в Selenium: {e}")
+        return None
 
 def save_data(count):
     data_file = "data.json"
@@ -101,7 +107,7 @@ def plot_graph(data):
     print("График сохранён.")
 
 def main():
-    print("Парсинг kv.ee...")
+    print("Парсинг kv.ee с помощью Selenium...")
     count = get_objects_count()
     if count is None:
         print("Не удалось получить данные.")
