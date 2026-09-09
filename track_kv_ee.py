@@ -1,4 +1,5 @@
-from apify import ApifyClient
+import requests
+from bs4 import BeautifulSoup
 import json
 import os
 import re
@@ -12,28 +13,34 @@ def get_objects_count():
         return None
 
     try:
-        # Создаём клиент Apify
-        client = ApifyClient(api_token)
-
-        # Запускаем актор для скрапинга страницы
-        run_input = {
+        # Запускаем актор через API Apify
+        headers = {
+            "Authorization": f"Bearer {api_token}",
+            "Content-Type": "application/json",
+        }
+        data = {
             "startUrls": [{"url": "https://www.kv.ee/en/apartments-for-sale"}],
-            "resultsType": "text",  # Получаем HTML страницы
-            "maxDepth": 0,  # Только стартовая страница
+            "resultsType": "text",
+            "maxDepth": 0,
         }
 
-        # Запускаем синхронный актор (web-scraper)
-        run = client.actor("apify/web-scraper").call(run_input=run_input)
+        # Запускаем синхронный актор
+        response = requests.post(
+            "https://api.apify.com/v2/acts/apify~web-scraper/run-sync-get-dataset-items",
+            headers=headers,
+            json=data,
+            timeout=30
+        )
+        response.raise_for_status()
 
         # Получаем результаты
-        dataset_items = client.dataset(run["defaultDatasetId"]).list_items().items
-
-        if not dataset_items:
+        result = response.json()
+        if not result or "data" not in result:
             print("Нет данных от Apify.")
             return None
 
-        # Берём первый результат (HTML страницы)
-        html = dataset_items[0]["html"]
+        # Берём HTML из первого результата
+        html = result["data"][0]["html"]
         if not html:
             print("HTML не получен.")
             return None
@@ -45,7 +52,6 @@ def get_objects_count():
             return int(count_text)
 
         # Ищем по классу
-        from bs4 import BeautifulSoup
         soup = BeautifulSoup(html, "html.parser")
         span = soup.find("span", class_=re.compile(r"large|stronger"))
         if span:
@@ -64,6 +70,9 @@ def get_objects_count():
         return None
     except Exception as e:
         print(f"Ошибка Apify: {e}")
+        if 'response' in locals():
+            print(f"Status code: {response.status_code}")
+            print(f"Response: {response.text[:500]}")
         return None
 
 def save_data(count):
