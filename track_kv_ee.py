@@ -7,73 +7,49 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 
 def get_objects_count():
-    api_token = os.getenv("APIFY_API_TOKEN")
-    if not api_token:
-        print("Apify API токен не найден!")
-        return None
+    urls = [
+        "https://www.kv.ee/en/apartments-for-sale",
+        "http://webcache.googleusercontent.com/search?q=cache:https://www.kv.ee/en/apartments-for-sale"  # Google Cache
+    ]
 
-    try:
-        # Запускаем актор через API Apify
-        headers = {
-            "Authorization": f"Bearer {api_token}",
-            "Content-Type": "application/json",
-        }
-        data = {
-            "startUrls": [{"url": "https://www.kv.ee/en/apartments-for-sale"}],
-            "resultsType": "text",
-            "maxDepth": 0,
-        }
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+    }
 
-        # Запускаем синхронный актор
-        response = requests.post(
-            "https://api.apify.com/v2/acts/apify~web-scraper/run-sync-get-dataset-items",
-            headers=headers,
-            json=data,
-            timeout=30
-        )
-        response.raise_for_status()
+    for url in urls:
+        try:
+            response = requests.get(url, headers=headers, timeout=15)
+            response.raise_for_status()
 
-        # Получаем результаты
-        result = response.json()
-        if not result or "data" not in result:
-            print("Нет данных от Apify.")
-            return None
-
-        # Берём HTML из первого результата
-        html = result["data"][0]["html"]
-        if not html:
-            print("HTML не получен.")
-            return None
-
-        # Ищем "Objects found" в HTML
-        match = re.search(r"Objects found (\d[\d\s]+)", html)
-        if match:
-            count_text = match.group(1).replace(" ", "")
-            return int(count_text)
-
-        # Ищем по классу
-        soup = BeautifulSoup(html, "html.parser")
-        span = soup.find("span", class_=re.compile(r"large|stronger"))
-        if span:
-            text = span.get_text(strip=True)
-            match = re.search(r"Objects found (\d[\d\s]+)", text)
+            # Ищем "Objects found" в HTML
+            match = re.search(r"Objects found (\d[\d\s]+)", response.text)
             if match:
                 count_text = match.group(1).replace(" ", "")
                 return int(count_text)
 
-        # Ищем в тексте всех элементов
-        for element in soup.find_all(string=re.compile(r"Objects found \d")):
-            count_text = re.sub(r"\D", "", str(element))
-            if count_text:
-                return int(count_text)
+            # Ищем по классу
+            soup = BeautifulSoup(response.text, "html.parser")
+            span = soup.find("span", class_=re.compile(r"large|stronger"))
+            if span:
+                text = span.get_text(strip=True)
+                match = re.search(r"Objects found (\d[\d\s]+)", text)
+                if match:
+                    count_text = match.group(1).replace(" ", "")
+                    return int(count_text)
 
-        return None
-    except Exception as e:
-        print(f"Ошибка Apify: {e}")
-        if 'response' in locals():
-            print(f"Status code: {response.status_code}")
-            print(f"Response: {response.text[:500]}")
-        return None
+            # Ищем в тексте всех элементов
+            for element in soup.find_all(string=re.compile(r"Objects found \d")):
+                count_text = re.sub(r"\D", "", str(element))
+                if count_text:
+                    return int(count_text)
+
+        except Exception as e:
+            print(f"Ошибка при запросе {url}: {e}")
+            continue
+
+    return None
 
 def save_data(count):
     data_file = "data.json"
@@ -120,7 +96,7 @@ def plot_graph(data):
     print("График сохранён.")
 
 def main():
-    print("Парсинг kv.ee через Apify...")
+    print("Парсинг kv.ee...")
     count = get_objects_count()
     if count is None:
         print("Не удалось получить данные.")
